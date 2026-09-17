@@ -1,0 +1,21 @@
+# Git and environment
+.git/
+.gitignore
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Tests and coverage
+tests/
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Datasets and local notebooks
+dataset/
+notebooks/
+
+# Documentation and logs
+*.log
