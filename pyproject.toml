@@ -33,7 +33,9 @@ dev = [
 ]
 train = [
     "kaggle>=2.2.4",
-    "ultralytics"
+    "onnx>=1.22.0",
+    "onnxscript>=0.7.2",
+    "ultralytics>=8.4.155",
 ]
 
 [tool.pytest.ini_options]

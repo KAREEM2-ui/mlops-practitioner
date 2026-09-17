@@ -50,3 +50,31 @@ curl -X POST http://localhost:8000/predict -F "file=@pothole.jpg"
 replace the file with specfic image path locally
 ```
 
+## Download the Dataset and Train the Model
+
+Run these commands from the repository root on your local machine, with Python 3.11 and uv installed.
+
+### 1. Install training dependencies
+
+```bash
+uv sync --group train
+```
+
+
+### 2. Download and extract the dataset
+
+```bash
+uv run --group train python dataset_install_script.py
+```
+
+The script downloads `farzadnekouei/pothole-image-segmentation-dataset` from Kaggle and extracts it into `dataset/`. Before training, check that this file exists:
+
+```text
+dataset/Pothole_Segmentation_YOLOv8/data.yaml
+```
+
+### 3. Train the model
+
+```bash
+uv run --group train python train.py
+```
