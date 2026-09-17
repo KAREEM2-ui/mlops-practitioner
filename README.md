@@ -28,24 +28,25 @@ my_ml_project/
 └── README.md
 ```
 
-## Quick Start with `uv`
+## Quick Start
 
-1. **Install dependencies:**
-   ```bash
-   uv sync
-   ```
+### 1. Pull the Docker image
 
-2. **Run tests:**
-   ```bash
-   uv run pytest
-   ```
+```bash
+docker pull kareemooo/mlopsprac:0.1.0
+```
 
-3. **Start the FastAPI server:**
-   ```bash
-   uv run uvicorn proj_1.main:app --reload --port 8000
-   ```
+### 2. Run it
 
-4. **API Endpoints:**
-   - `GET /health` - Service health status
-   - `POST /predict` - Base64 image inference
-   - `POST /predict/file` - Multipart image file upload inference
+```bash
+docker run --rm -p 8000:8000 kareemooo/mlopsprac:0.1.0
+```
+
+### 3. Make a prediction
+
+```bash
+curl -X POST http://localhost:8000/predict -F "file=@pothole.jpg"
+
+replace the file with specfic image path locally
+```
+
