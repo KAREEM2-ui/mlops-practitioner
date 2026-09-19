@@ -1,8 +1,11 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from io import BytesIO
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Annotated
+
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
-from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image, UnidentifiedImageError
 
 from proj_1.dtos.response import PredictionResponse
 from proj_1.model import IModel, ONNXModel
@@ -28,7 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     global _model_instance
     config = load_config()
     model_cfg = config.get("model", {})
-    raw_path = model_cfg.get("path", "model.onnx") 
+    raw_path = model_cfg.get("path", "model.onnx")
 
     candidates = [
         Path(raw_path),
@@ -42,11 +45,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             _model_instance = ONNXModel(model_path=str(resolved_path))
             print(f"Info: Loaded ONNX model from '{resolved_path}'")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"Warning: Failed to load ONNX model from '{resolved_path}': {e}")
             _model_instance = None
     else:
-        print(f"Warning: Model file '{raw_path}' not found at startup. Waiting for model to be provided.")
+        print(
+            f"Warning: Model file '{raw_path}' not found at startup. Waiting for model to be provided."
+        )
         _model_instance = None
 
     yield
@@ -59,7 +64,6 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
 
 
 @app.get("/health", tags=["Health"])
@@ -76,40 +80,89 @@ async def health_check() -> dict[str, str]:
     tags=["Inference"],
 )
 async def predict_file(
-    file: UploadFile | None = File(None),
-    image: UploadFile | None = File(None),
+    image: Annotated[
+        UploadFile, File(..., description="Image file to be processed for inference.")
+    ],
 ) -> PredictionResponse:
     """Inference endpoint accepting multipart/form-data image file upload."""
-    uploaded = file or image
-    if uploaded is None:
+    if image is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No image uploaded. Please supply a multipart field named 'file' or 'image'.",
         )
 
     model = get_model()
-    try:
-        image_bytes = await uploaded.read()
-        if not image_bytes:
-            raise ValueError("Uploaded file is empty.")
-    except Exception as e:
+    config = load_config()
+
+    image_bytes = await image.read()
+    if not image_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read uploaded file: {e}",
+            detail="Uploaded image file is empty.",
+        )
+
+    if (
+        len(image_bytes) > config.get("validation.ImageMaxSizeMb", 10) * 1024 * 1024
+    ):  # limit in MB
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Uploaded image file exceeds the maximum allowed size of 10 MB.",
+        )
+
+    if image.content_type not in [
+        "image/jpeg",
+        "image/png",
+        "image/jpg",
+        "image/bmp",
+        "image/gif",
+    ]:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported image format: {image.content_type}. Supported formats are JPEG, PNG, BMP, and GIF.",
         )
 
     try:
-        result = model.predict(image_bytes)
-        predictions = result if isinstance(result, list) else result.get("prediction", [])
+        with Image.open(BytesIO(image_bytes)) as uploaded_image:
+            uploaded_image.load()  # Decode pixels now so corrupt uploads fail validation.
+            decoded_image = uploaded_image.copy()
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        Image.DecompressionBombError,
+    ) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is not a valid image.",
+        ) from e
+
+    # checking the size of the image after decoding
+    width, height = decoded_image.size
+    max_horizontal = config.get("validation.MaxHorizontalPixels", 3840)
+    max_vertical = config.get("validation.MaxVerticalPixels", 2160)
+
+    if width > max_horizontal or height > max_vertical:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Uploaded image dimensions {width}x{height} exceed the maximum allowed {max_horizontal}x{max_vertical} pixels.",
+        )
+
+    try:
+        result = model.predict(decoded_image)
+        predictions = (
+            result if isinstance(result, list) else result.get("prediction", [])
+        )
         return PredictionResponse(
             status="success",
             prediction=predictions,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Model inference failed: {e}",
         )
+    finally:
+        decoded_image.close()
 
 
 def main() -> None:
@@ -125,4 +178,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

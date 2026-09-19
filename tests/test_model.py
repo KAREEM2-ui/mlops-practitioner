@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from proj_1.model import ONNXModel
 from proj_1.pipeline import ImagePreprocessingPipeline
@@ -26,18 +27,9 @@ def model_setup(monkeypatch):
     return ONNXModel("unused.onnx", pipeline=pipeline), session, pipeline
 
 
-def test_predict_rejects_empty_bytes_before_inference(model_setup):
+def test_predict_passes_data_through_pipeline(model_setup):
     model, session, pipeline = model_setup
-    with pytest.raises(ValueError, match="cannot be empty"):
-        model.predict(b"")
-    session.run.assert_not_called()
-    pipeline.preprocess.assert_not_called()
-
-
-
-def test_predict_passes_data_through_pipeline(model_setup, image_bytes):
-    model, session, pipeline = model_setup
-    data = image_bytes()
+    data = Image.new("RGB", (80, 40))
     tensor = np.zeros((1, 3, 20, 30), dtype=np.float32)
     pipeline.preprocess.return_value = ((80, 40), tensor)
     expected = [object()]
@@ -59,5 +51,5 @@ def test_inference_failure_propagates(model_setup):
     pipeline.preprocess.return_value = ((80, 40), np.zeros((1, 3, 20, 30)))
     session.run.side_effect = RuntimeError("inference failed")
     with pytest.raises(RuntimeError, match="inference failed"):
-        model.predict(b"image")
+        model.predict(Image.new("RGB", (80, 40)))
     pipeline.postprocess.assert_not_called()

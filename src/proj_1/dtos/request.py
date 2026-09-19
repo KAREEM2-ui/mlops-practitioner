@@ -5,6 +5,5 @@ from pydantic import BaseModel
 
 class PredictionImageRequest(BaseModel):
     """Request DTO containing an image file."""
-    image: UploadFile = File(..., description="Image file to be sent for inference")
 
-    
+    image: UploadFile = File(..., description="Image file to be sent for inference")

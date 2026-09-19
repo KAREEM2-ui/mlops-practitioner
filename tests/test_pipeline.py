@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from PIL import UnidentifiedImageError
+from PIL import Image
 
 from proj_1.pipeline import ImagePreprocessingPipeline as Pipeline
 import pytest
@@ -18,9 +18,10 @@ def make_outputs(detections):
     return [output, np.zeros((1, 32, 16, 16), dtype=np.float32)]
 
 
-def test_preprocess_resizes_normalizes_and_preserves_original_size(image_bytes,get_original_size):
+def test_preprocess_resizes_normalizes_and_preserves_original_size(get_original_size):
     
-    original_size, tensor = Pipeline.preprocess(image_bytes(), (1, 3, 20, 30))
+    image = Image.new("RGB", get_original_size, (255, 128, 0))
+    original_size, tensor = Pipeline.preprocess(image, (1, 3, 20, 30))
     assert original_size == get_original_size
     assert tensor.shape == (1, 3, 20, 30)
     assert tensor.dtype == np.float32
@@ -33,16 +34,19 @@ def test_preprocess_resizes_normalizes_and_preserves_original_size(image_bytes,g
 
 
 
-@pytest.mark.parametrize("data", [b"", b"not an image"])
-def test_preprocess_rejects_invalid_image(data):
-    with pytest.raises(UnidentifiedImageError):
-        Pipeline.preprocess(data, (1, 3, 20, 30))
+@pytest.mark.parametrize("mode", ["L", "RGBA"])
+def test_preprocess_converts_to_rgb_without_modifying_input(mode):
+    image = Image.new(mode, (80, 40))
+    _, tensor = Pipeline.preprocess(image, (1, 3, 20, 30))
+    assert tensor.shape == (1, 3, 20, 30)
+    assert image.mode == mode
+    assert image.size == (80, 40)
 
 
 @pytest.mark.parametrize("shape", [None, (), (3, 20, 30), (1, 3, 20, 30, 1)])
-def test_preprocess_rejects_invalid_shape(image_bytes, shape):
+def test_preprocess_rejects_invalid_shape(shape):
     with pytest.raises(ValueError, match="4D shape"):
-        Pipeline.preprocess(image_bytes(), shape)
+        Pipeline.preprocess(Image.new("RGB", (80, 40)), shape)
 
 
 @pytest.mark.parametrize("detections", [[], [[320, 320, 100, 100, 0.1]]])

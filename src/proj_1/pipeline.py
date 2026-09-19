@@ -1,37 +1,36 @@
-import io
 from typing import Any
+
 import numpy as np
 from PIL import Image
 
-from proj_1.types.Prediction import MaskPrediction, ObjectPrediction, BoundingBox
-
+from proj_1.types.Prediction import BoundingBox, MaskPrediction, ObjectPrediction
 
 
 class ImagePreprocessingPipeline:
     """Handles image transformation and output postprocessing."""
 
-    boxIdx = (0,4)
+    boxIdx = (0, 4)
     confidenceIdx = 4
-    coeffIdx = (5,37)
+    coeffIdx = (5, 37)
     target_size = (640, 640)  # Default target size for model input
 
-    @staticmethod        
+    @staticmethod
     def preprocess(
-        image_bytes: bytes,
+        image: Image.Image,
         target_shape: list[Any] | tuple[Any, ...] | None = None,
     ) -> tuple[tuple[int, int], np.ndarray]:
-        """Decodes image bytes, resizes, normalizes, and reshapes into NCHW float32 tensor."""
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        """Converts a PIL image to RGB, resizes, and produces an NCHW float32 tensor."""
+        image = image.convert("RGB")
         original_size = image.size  # (width, height)
 
         # Determine target width and height
         if not target_shape or len(target_shape) != 4:
-            raise ValueError("target_shape must be a 4D shape (batch, channels, height, width)")
-        
+            raise ValueError(
+                "target_shape must be a 4D shape (batch, channels, height, width)"
+            )
+
         # Format (batch, channels, height, width) or (batch, height, width, channels)
-        _, c, h, w = target_shape
-        
-        
+        _, _, h, w = target_shape
 
         # Resize image
         if (w, h) != image.size:
@@ -40,18 +39,16 @@ class ImagePreprocessingPipeline:
         # Convert to numpy array and scale to [0, 1]
         arr = np.array(image, dtype=np.float32) / 255.0
 
-   
-
         # Transpose HWC -> CHW and add batch dimension (1, C, H, W)  shape become =>  (1, 3, 640, 640)
         tensor = np.transpose(arr, (2, 0, 1))
         tensor = np.expand_dims(tensor, axis=0).astype(np.float32)
 
-        return (original_size,tensor)
-
-
+        return (original_size, tensor)
 
     @staticmethod
-    def _box_to_corners(raw_box: np.ndarray | list[float]) -> tuple[float, float, float, float]:
+    def _box_to_corners(
+        raw_box: np.ndarray | list[float],
+    ) -> tuple[float, float, float, float]:
         """Converts [center_x, center_y, width, height] to (x_min, y_min, x_max, y_max)."""
         cx = float(raw_box[0])
         cy = float(raw_box[1])
@@ -60,41 +57,50 @@ class ImagePreprocessingPipeline:
         return (cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0)
 
     @staticmethod
-    def _scale_bounding_box(box: BoundingBox, original_size: tuple[int, int], target_size: tuple[int, int]) -> BoundingBox:
+    def _scale_bounding_box(
+        box: BoundingBox, original_size: tuple[int, int], target_size: tuple[int, int]
+    ) -> BoundingBox:
         """Scales the bounding box to the original image size."""
         scale_x = original_size[0] / target_size[0]
         scale_y = original_size[1] / target_size[1]
-        
+
         box.x_min *= scale_x
         box.x_max *= scale_x
         box.y_min *= scale_y
         box.y_max *= scale_y
-        
+
         return box
 
     @staticmethod
     def _scale_mask(mask: np.ndarray, original_size: tuple[int, int]) -> np.ndarray:
         """Scales the mask to the original image size."""
         mask_image = Image.fromarray((mask * 255).astype(np.uint8))
-        mask_image = mask_image.resize((original_size[0], original_size[1]), Image.Resampling.BILINEAR)
+        mask_image = mask_image.resize(
+            (original_size[0], original_size[1]), Image.Resampling.BILINEAR
+        )
         return np.array(mask_image) / 255.0
 
     @classmethod
     def _extract_coefficients(cls, arr: np.ndarray) -> np.ndarray:
         """Extracts mask coefficients from the raw output."""
-        return arr[cls.coeffIdx[0]:cls.coeffIdx[1]]
+        return arr[cls.coeffIdx[0] : cls.coeffIdx[1]]
 
     @staticmethod
-    def _crop_mask(mask: np.ndarray, box_corners: tuple[float, float, float, float], model_size: tuple[int, int], proto_size: tuple[int, int]) -> np.ndarray:
+    def _crop_mask(
+        mask: np.ndarray,
+        box_corners: tuple[float, float, float, float],
+        model_size: tuple[int, int],
+        proto_size: tuple[int, int],
+    ) -> np.ndarray:
         proto_h, proto_w = proto_size
         model_w, model_h = model_size
         scale_x, scale_y = proto_w / model_w, proto_h / model_h
 
         x1, y1, x2, y2 = box_corners
-        px1 = max(0, int(round(x1 * scale_x)))
-        py1 = max(0, int(round(y1 * scale_y)))
-        px2 = min(proto_w, int(round(x2 * scale_x)))
-        py2 = min(proto_h, int(round(y2 * scale_y)))
+        px1 = max(0, round(x1 * scale_x))
+        py1 = max(0, round(y1 * scale_y))
+        px2 = min(proto_w, round(x2 * scale_x))
+        py2 = min(proto_h, round(y2 * scale_y))
 
         cropped = np.zeros_like(mask)
         if px2 > px1 and py2 > py1:
@@ -113,23 +119,25 @@ class ImagePreprocessingPipeline:
         protos_flat = prototype_mask.reshape(proto_c, -1)
 
         coeffs = cls._extract_coefficients(detection)
-            
-        mask = coeffs @ protos_flat  
+
+        mask = coeffs @ protos_flat
         mask = mask.reshape(proto_h, proto_w)
         mask = 1 / (1 + np.exp(-mask))  # sigmoid
-        
+
         mask = cls._crop_mask(mask, box_corners, cls.target_size, (proto_h, proto_w))
         mask = cls._scale_mask(mask, original_size)
-            
+
         return MaskPrediction(mask=mask.tolist())
-       
+
     @classmethod
     def _extract_confidence(cls, detection: np.ndarray) -> float:
         """Extracts the confidence score from the raw output."""
-        return float(detection[cls.confidenceIdx]) 
+        return float(detection[cls.confidenceIdx])
 
     @staticmethod
-    def _compute_iou(box1: tuple[float, float, float, float], box2: tuple[float, float, float, float]) -> float:
+    def _compute_iou(
+        box1: tuple[float, float, float, float], box2: tuple[float, float, float, float]
+    ) -> float:
         """Calculates Intersection over Union (IoU) between two boxes (x1, y1, x2, y2)."""
         x1 = max(box1[0], box2[0])
         y1 = max(box1[1], box2[1])
@@ -151,7 +159,9 @@ class ImagePreprocessingPipeline:
         iou_threshold: float = 0.5,
     ) -> list[int]:
         """Performs Non-Maximum Suppression and returns indices of surviving boxes."""
-        sorted_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+        sorted_indices = sorted(
+            range(len(scores)), key=lambda i: scores[i], reverse=True
+        )
         kept_indices: list[int] = []
 
         while sorted_indices:
@@ -159,23 +169,22 @@ class ImagePreprocessingPipeline:
             kept_indices.append(current)
 
             sorted_indices = [
-                idx for idx in sorted_indices
+                idx
+                for idx in sorted_indices
                 if cls._compute_iou(boxes[current], boxes[idx]) < iou_threshold
             ]
 
         return kept_indices
 
-
     @classmethod
-    def clip(cls,box:BoundingBox, original_size: tuple[int, int]) -> BoundingBox:
+    def clip(cls, box: BoundingBox, original_size: tuple[int, int]) -> BoundingBox:
         """Clips the bounding box coordinates to be within the image dimensions."""
         box.x_min = max(0.0, min(float(original_size[0]), box.x_min))
         box.y_min = max(0.0, min(float(original_size[1]), box.y_min))
         box.x_max = max(0.0, min(float(original_size[0]), box.x_max))
         box.y_max = max(0.0, min(float(original_size[1]), box.y_max))
         return box
-    
-    
+
     @classmethod
     def postprocess(
         cls,
@@ -210,7 +219,9 @@ class ImagePreprocessingPipeline:
             return []
 
         # Run Non-Maximum Suppression to remove duplicates
-        surviving_ranks = cls._nms(candidate_boxes_model_space, candidate_scores, iou_threshold=iou_threshold)
+        surviving_ranks = cls._nms(
+            candidate_boxes_model_space, candidate_scores, iou_threshold=iou_threshold
+        )
 
         objects_predicted: list[ObjectPrediction] = []
         for rank in surviving_ranks:
@@ -229,14 +240,15 @@ class ImagePreprocessingPipeline:
                 x_max=box_model[2],
                 y_max=box_model[3],
             )
-            
+
             # Scale bounding box to original image size if it differs from the model's target size
             if original_size != cls.target_size:
-                box_scaled = cls._scale_bounding_box(box_scaled, original_size, cls.target_size)
+                box_scaled = cls._scale_bounding_box(
+                    box_scaled, original_size, cls.target_size
+                )
 
             # Clamp coordinates within image bounds
             box_scaled = cls.clip(box_scaled, original_size)
-           
 
             obj = ObjectPrediction(
                 class_id=0,
@@ -247,6 +259,3 @@ class ImagePreprocessingPipeline:
             objects_predicted.append(obj)
 
         return objects_predicted
-        
-        
-    
