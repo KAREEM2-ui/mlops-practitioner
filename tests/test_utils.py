@@ -2,15 +2,20 @@ import pytest
 import yaml
 
 from proj_1.utils import load_config
-import pytest
 
 # mark all tests as unit tests
 pytestmark = pytest.mark.unit
 
+
 def test_load_config_reads_yaml(tmp_path):
     path = tmp_path / "config.yaml"
-    path.write_text("server:\n  port: 8000\nmodel:\n  path: model.onnx\n", encoding="utf-8")
-    assert load_config(path) == {"server": {"port": 8000}, "model": {"path": "model.onnx"}}
+    path.write_text(
+        "server:\n  port: 8000\nmodel:\n  path: model.onnx\n", encoding="utf-8"
+    )
+    assert load_config(path) == {
+        "server": {"port": 8000},
+        "model": {"path": "model.onnx"},
+    }
 
 
 def test_load_config_missing_file(tmp_path):

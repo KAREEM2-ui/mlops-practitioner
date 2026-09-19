@@ -4,13 +4,11 @@ def install_data():
     import zipfile
 
     KAGGLE_DIR = os.path.expanduser("~/.kaggle")
-    KAGGLE_JSON = "kaggle.json"
     ZIP_PATH = "pothole-image-segmentation-dataset.zip"
     DATASET_DIR = "dataset"
 
     # Create ~/.kaggle directory
     os.makedirs(KAGGLE_DIR, exist_ok=True)
-
 
     # Download dataset
     subprocess.run(
@@ -31,7 +29,6 @@ def install_data():
         zip_file.extractall(DATASET_DIR)
 
     print(f"Dataset extracted to: {DATASET_DIR}")
-
 
 
 if __name__ == "__main__":

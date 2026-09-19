@@ -22,7 +22,9 @@ def endpoint(monkeypatch):
 @pytest.mark.parametrize("data", [b"", b"not an image"])
 def test_endpoint_rejects_invalid_upload_before_inference(endpoint, data):
     client, model = endpoint
-    response = client.post("/predict/image", files={"image": ("fake.png", data, "image/png")})
+    response = client.post(
+        "/predict/image", files={"image": ("fake.png", data, "image/png")}
+    )
     assert response.status_code == 400
     model.predict.assert_not_called()
 
@@ -30,7 +32,9 @@ def test_endpoint_rejects_invalid_upload_before_inference(endpoint, data):
 def test_endpoint_rejects_truncated_image(endpoint, image_bytes):
     client, model = endpoint
     data = image_bytes()[:50]
-    response = client.post("/predict/image", files={"image": ("broken.png", data, "image/png")})
+    response = client.post(
+        "/predict/image", files={"image": ("broken.png", data, "image/png")}
+    )
     assert response.status_code == 400
     model.predict.assert_not_called()
 
@@ -45,6 +49,8 @@ def test_endpoint_passes_decoded_image_to_model(endpoint, image_bytes):
         return []
 
     model.predict.side_effect = predict
-    response = client.post("/predict/image", files={"image": ("image.png", image_bytes(), "image/png")})
+    response = client.post(
+        "/predict/image", files={"image": ("image.png", image_bytes(), "image/png")}
+    )
     assert response.status_code == 200
     model.predict.assert_called_once()
