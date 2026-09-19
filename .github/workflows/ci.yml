@@ -46,15 +46,15 @@ jobs:
           uv run --no-sync pytest
           --cov=proj_1
           --cov-report=term-missing
-          --cov-report=xml:coverage.xml
+          --cov-report=html:coverage.html
           --cov-fail-under=80
 
       - name: Upload coverage report
-        if: ${{ always() && hashFiles('coverage.xml') != '' }}
+        if: ${{ always() && hashFiles('coverage.html') != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
-          path: coverage.xml
+          path: coverage.html
           retention-days: 14
 
   docker:
