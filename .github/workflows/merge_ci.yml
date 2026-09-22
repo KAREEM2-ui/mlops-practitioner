@@ -45,7 +45,7 @@ jobs:
 
       - name: Run tests with at least 80% coverage
         run: >-
-          uv run --no-sync pytest
+          uv run --no-sync pytest -m integration -v
           --cov=proj_1
           --cov-report=term-missing
           --cov-report=html:coverage.html
