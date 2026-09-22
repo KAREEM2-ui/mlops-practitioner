@@ -70,5 +70,5 @@ jobs:
           MLFLOW_MODEL_NAME: ${{ secrets.MLFLOW_MODEL_NAME }}
           MLFLOW_METRIC_NAME: ${{ secrets.MLFLOW_METRIC_NAME }}
           MLFLOW_MAX_ALLOWED_DROP: ${{ secrets.MLFLOW_MAX_ALLOWED_DROP }}
-        run: uv run --no-sync python src/Model_Drift_detection.py
+        run: uv run --no-sync python Model_Drift_detection.py
 

@@ -8,22 +8,15 @@ from mlflow import MlflowClient
 
 TRACKING_URI = os.getenv(
     "MLFLOW_TRACKING_URI",
-    "https://3.217.24.59.nip.io",
 )
 
-MODEL_NAME = os.getenv(
-    "MLFLOW_MODEL_NAME",
-    "pothole-segmentation",
-)
+MODEL_NAME = "pothole-segmentation"
 
-METRIC_NAME = os.getenv(
-    "MLFLOW_METRIC_NAME",
-    "mask_map50_95",
-)
 
-MAX_ALLOWED_DROP = float(
-    os.getenv("MLFLOW_MAX_ALLOWED_DROP", "0.05")
-)
+METRIC_NAME = "mask_map50_95"
+
+
+MAX_ALLOWED_DROP = 0.05
 
 
 def get_metric(client, model_version):
