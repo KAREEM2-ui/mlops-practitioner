@@ -1,9 +1,11 @@
-name: CI
+name: Merge CI
+
+
 
 on:
   push:
     branches:
-      - "**"
+      - "main"
     tags:
       - "v*.*.*"
 
@@ -33,7 +35,7 @@ jobs:
         run: uv python install
 
       - name: Install project and development dependencies
-        run: uv sync --locked --group dev
+        run: uv sync --locked --group test
 
       - name: Lint
         run: uv run --no-sync ruff check src/
@@ -94,3 +96,5 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+

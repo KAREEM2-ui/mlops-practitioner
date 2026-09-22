@@ -1,0 +1,73 @@
+name: Pre- merge CI
+
+on:
+  pull_request:
+    branches:
+      - "main"
+  push:
+    branches:
+      - "!main"
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, format, tests and coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.0.1 latest
+        with:
+          version: "0.12.11"
+          enable-cache: true
+
+      - name: Install Python from .python-version
+        run: uv python install
+
+      - name: Install test dependencies
+        run: uv sync --locked --group test
+
+
+      - name: Lint
+        run: uv run --no-sync ruff check src/
+
+      - name: Check formatting
+        run: uv run --no-sync ruff format --check src/
+
+      - name: Run tests with at least 80% coverage
+        run: >-
+          uv run --no-sync pytest
+          --cov=proj_1
+          --cov-report=term-missing
+          --cov-report=html:htmlcov
+          --cov-fail-under=80
+
+      - name: Upload coverage report
+        if: ${{ always() && hashFiles('htmlcov/**') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 14
+
+      - name: Model Drift Detection
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_MODEL_NAME: ${{ secrets.MLFLOW_MODEL_NAME }}
+          MLFLOW_METRIC_NAME: ${{ secrets.MLFLOW_METRIC_NAME }}
+          MLFLOW_MAX_ALLOWED_DROP: ${{ secrets.MLFLOW_MAX_ALLOWED_DROP }}
+        run: uv run --no-sync python src/Model_Drift_detection.py
+

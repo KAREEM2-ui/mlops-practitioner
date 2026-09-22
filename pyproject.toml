@@ -26,15 +26,18 @@ requires = ["uv_build>=0.12.11,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
-dev = [
-    "httpx>=0.27.0",
-    "pytest>=8.0.0",
+test = [
+    "mlflow>=3.16.1",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff==0.16.8",
+    "ruff>=0.16.8",
+    "httpx>=0.27.0",
 ]
+
 train = [
     "dvc>=3.67.1",
     "kaggle>=2.2.4",
+    "mlflow>=3.16.1",
     "onnx>=1.22.0",
     "onnxscript>=0.7.2",
     "ultralytics>=8.4.155",
